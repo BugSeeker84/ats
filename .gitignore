@@ -1,0 +1,20 @@
+# Secrets
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Generated artifacts
+output/
+
+# The applications log keeps your history. Uncomment to ignore it.
+# data/applications.csv
+
+*.log
+.DS_Store

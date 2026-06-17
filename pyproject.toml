@@ -1,0 +1,22 @@
+[project]
+name = "ats-resume-build"
+version = "0.1.0"
+description = "Internal AI resume + cover-letter builder: match a JD to the best-fit developer and generate tailored HTML."
+requires-python = ">=3.10"
+dependencies = [
+    "openai>=1.40.0",
+    "python-dotenv>=1.0.0",
+    "python-frontmatter>=1.1.0",
+    "pypdf>=4.0.0",
+    "python-docx>=1.1.0",
+]
+
+[project.scripts]
+ats = "ats.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["ats"]

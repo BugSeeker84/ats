@@ -1,0 +1,20 @@
+Senior Backend Engineer — Cloud Control Plane
+Company: Cloudflare
+Location: Remote (US)
+Compensation: $190,000 – $230,000 + equity
+
+About the role:
+We're hiring a senior backend engineer to build and operate the control plane for
+our global edge network. You'll design highly available services in Go, own
+multi-region rollouts, and keep p99 latency low under heavy load.
+
+Requirements:
+- 8+ years building distributed systems in production.
+- Strong Go (or Rust); deep gRPC and Kubernetes experience.
+- Experience operating stateful services across many regions.
+- Comfort with on-call, observability, and resilience patterns (load shedding,
+  circuit breaking, backpressure).
+
+Nice to have:
+- Terraform / infrastructure-as-code.
+- Experience at hyperscale cloud providers.
