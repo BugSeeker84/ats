@@ -28,16 +28,25 @@ def get_usage() -> dict:
     return dict(_usage)
 
 
-def complete(model: str, system: str, user: str, max_tokens: int | None = None) -> str:
+def complete(
+    model: str,
+    system: str,
+    user: str,
+    max_tokens: int | None = None,
+    temperature: float | None = None,
+) -> str:
     """Single-turn chat completion. Returns the response text and records token usage."""
-    res = _get_client().chat.completions.create(
-        model=model,
-        max_tokens=max_tokens or config.MAX_TOKENS,
-        messages=[
+    kwargs = {
+        "model": model,
+        "max_tokens": max_tokens or config.MAX_TOKENS,
+        "messages": [
             {"role": "system", "content": system},
             {"role": "user", "content": user},
         ],
-    )
+    }
+    if temperature is not None:
+        kwargs["temperature"] = temperature
+    res = _get_client().chat.completions.create(**kwargs)
     usage = getattr(res, "usage", None)
     if usage is not None:
         _usage["input_tokens"] += getattr(usage, "prompt_tokens", 0) or 0

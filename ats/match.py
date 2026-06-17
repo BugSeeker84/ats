@@ -56,7 +56,8 @@ def run_match(profiles: list[Profile], jd_text: str) -> dict:
         f"ROSTER (developers):\n{json.dumps(roster, indent=2)}\n\n"
         f'JOB DESCRIPTION:\n"""\n{jd_text}\n"""'
     )
-    text = llm.complete(config.MATCH_MODEL, SYSTEM, user)
+    # temperature=0 → deterministic scoring, so the same JD selects the same candidate.
+    text = llm.complete(config.MATCH_MODEL, SYSTEM, user, temperature=0)
     raw = llm.extract_json(text)
 
     w = config.weights()

@@ -7,7 +7,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import config
-from .applications import append_application, find_prior_applications, read_applications
+from .applications import (
+    append_application,
+    find_prior_applications,
+    hash_jd,
+    read_applications,
+)
 from .generate import run_generate, save_docs
 from .importer import run_import
 from .llm import get_usage
@@ -193,7 +198,8 @@ def cmd_generate(args) -> None:
     _print_ranking(result)
 
     # Duplicate-application alert.
-    prior = find_prior_applications(result["jd"]["company"], result["jd"]["role"])
+    jd_hash = hash_jd(jd_text)
+    prior = find_prior_applications(result["jd"]["company"], result["jd"]["role"], jd_hash)
     if prior:
         print(
             RED(BOLD("⚠  ALREADY APPLIED"))
@@ -207,6 +213,15 @@ def cmd_generate(args) -> None:
                 )
             )
         print()
+        # Non-interactive (hotkey) or unconfirmed: do NOT silently make a duplicate.
+        if not args.force:
+            if args.yes:
+                msg = f"Already applied to {result['jd']['role']} @ {result['jd']['company']} — skipped."
+                print(YELLOW(msg + " Re-run with --force to generate anyway."))
+                if args.notify:
+                    _notify("ATS — already applied", msg)
+                _print_usage()
+                return
 
     chosen_id = args.profile or result["recommended_id"]
     if not get_profile(chosen_id):
@@ -248,6 +263,7 @@ def cmd_generate(args) -> None:
             "salary": result["jd"].get("salary", ""),
             "location": result["jd"].get("location", ""),
             "jd_url": args.jd_url or "",
+            "jd_hash": jd_hash,
             "output_dir": out_dir,
         }
     )
@@ -332,6 +348,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_gen.add_argument("--profile", help="Force a specific profile instead of the recommended one")
     p_gen.add_argument("--jd-url", dest="jd_url", help="Store the JD link in the log")
     p_gen.add_argument("--yes", action="store_true", help="Skip the confirmation prompt")
+    p_gen.add_argument("--force", action="store_true", help="Generate even if already applied to this job")
     p_gen.add_argument("--open", action="store_true", help="Open the resume after generating")
     p_gen.add_argument("--notify", action="store_true", help="Send a desktop notification when done")
     p_gen.set_defaults(func=cmd_generate)
