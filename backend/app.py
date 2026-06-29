@@ -6,6 +6,7 @@ or the CSV log. Run with:
 
     uvicorn backend.app:app --host 0.0.0.0 --port 8000
 """
+import mimetypes
 import os
 import sys
 import threading
@@ -13,11 +14,11 @@ from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from ats import config
+from ats import config, storage
 from ats.applications import read_applications
 from ats.pipeline import process_jd
 from ats.profiles import load_profiles
@@ -89,7 +90,18 @@ def profiles(_: bool = Depends(require_auth)) -> list[dict]:
 
 
 @app.get("/api/files/{folder}/{filename}")
-def get_file(folder: str, filename: str, _: bool = Depends(require_auth)) -> FileResponse:
+def get_file(folder: str, filename: str, _: bool = Depends(require_auth)):
+    # When object storage is on, files live in the bucket (the local disk is ephemeral).
+    if storage.enabled():
+        data = storage.download_bytes(folder, filename)
+        if data is None:
+            raise HTTPException(status_code=404, detail="File not found.")
+        media = mimetypes.guess_type(filename)[0] or "application/octet-stream"
+        return Response(
+            content=data,
+            media_type=media,
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+        )
     root = config.OUTPUT_DIR.resolve()
     path = (root / folder / filename).resolve()
     if root not in path.parents or not path.is_file():

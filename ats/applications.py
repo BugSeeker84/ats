@@ -1,8 +1,12 @@
 """Application log (CSV) + duplicate-application detection."""
 import csv
 import hashlib
+import io
 
-from . import config
+from . import config, storage
+
+# Object key for the index when storage is enabled (kept flat at the bucket prefix root).
+_CSV_KEY = "applications.csv"
 
 HEADER = [
     "number",     # running index, 1-based
@@ -31,7 +35,19 @@ def _ensure_file() -> None:
             csv.writer(f).writerow(HEADER)
 
 
+def _rows_to_csv(rows: list[dict]) -> str:
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(HEADER)
+    for r in rows:
+        writer.writerow([r.get(k, "") for k in HEADER])
+    return buf.getvalue()
+
+
 def read_applications() -> list[dict]:
+    if storage.enabled():
+        text = storage.read_text(_CSV_KEY)
+        return list(csv.DictReader(io.StringIO(text))) if text else []
     if not config.APPLICATIONS_CSV.exists():
         return []
     with config.APPLICATIONS_CSV.open(newline="", encoding="utf-8-sig") as f:
@@ -39,9 +55,17 @@ def read_applications() -> list[dict]:
 
 
 def append_application(app: dict) -> dict:
-    """Append one row, assigning the next running number. Returns the stored row."""
+    """Append one row, assigning the next running number. Returns the stored row.
+
+    With storage enabled, the whole index is rewritten as one object (atomic put);
+    generation is serialized by a lock upstream, so the read-modify-write is safe.
+    """
+    rows = read_applications()
+    row = {**app, "number": len(rows) + 1}
+    if storage.enabled():
+        storage.write_text(_rows_to_csv([*rows, row]), _CSV_KEY)
+        return row
     _ensure_file()
-    row = {**app, "number": len(read_applications()) + 1}
     with config.APPLICATIONS_CSV.open("a", newline="", encoding="utf-8") as f:
         csv.writer(f).writerow([row.get(k, "") for k in HEADER])
     return row
