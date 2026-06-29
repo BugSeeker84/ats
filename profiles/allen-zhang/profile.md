@@ -24,4 +24,3 @@ restaurant technology, delivery/e-commerce, and logistics SaaS.
 
 ## Education
 - B.S. in Computer Science — University of Texas at Austin (2014 – 2018)
-1
