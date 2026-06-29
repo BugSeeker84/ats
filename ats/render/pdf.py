@@ -7,6 +7,10 @@ from pathlib import Path
 
 _MARGIN = {"top": "0.5in", "bottom": "0.5in", "left": "0.5in", "right": "0.5in"}
 
+# Needed for headless Chromium on Linux servers/containers (running as root, small /dev/shm).
+# Harmless on Windows/macOS, so we always pass them — keeps local and deployed behavior identical.
+_LAUNCH_ARGS = ["--no-sandbox", "--disable-dev-shm-usage"]
+
 
 class PdfUnavailable(RuntimeError):
     """Raised when the Chromium browser isn't installed for Playwright."""
@@ -30,7 +34,7 @@ def html_to_pdfs(jobs: list[tuple[str, Path]]) -> None:
 
     try:
         with sync_playwright() as p:
-            browser = p.chromium.launch()
+            browser = p.chromium.launch(args=_LAUNCH_ARGS)
             try:
                 for html, out_path in jobs:
                     page = browser.new_page()

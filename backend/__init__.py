@@ -1,0 +1,1 @@
+"""Web backend for the ATS resume bot (FastAPI). See backend/app.py."""
