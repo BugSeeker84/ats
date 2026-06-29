@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cover Letter — {{ name }}</title>
+<style>
+  :root { --ink:#1a1a1a; --muted:#555; --accent:#1f4e79; --rule:#dddddd; }
+  * { box-sizing: border-box; }
+  body { font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+         color: var(--ink); line-height: 1.55; max-width: 800px; margin: 0 auto;
+         padding: 40px 48px; font-size: 11pt; }
+  header { border-bottom: 2px solid var(--accent); padding-bottom: 12px; margin-bottom: 22px; }
+  h1 { font-size: 22pt; margin: 0; letter-spacing: .3px; }
+  .role { color: var(--accent); font-weight: 600; font-size: 12pt; margin: 2px 0 6px; }
+  .contact { color: var(--muted); font-size: 9.5pt; }
+  .contact span { margin-right: 12px; }
+  .letter p { margin: 0 0 12px; }
+  .sign { margin-top: 18px; }
+  .sign .name { font-weight: 600; }
+  @media print { body { padding: 0; } }
+</style>
+</head>
+<body>
+  <header>
+    <h1>{{ name }}</h1>
+    <div class="role">{{ title }}</div>
+    <div class="contact">
+      {% if contact.location %}<span>{{ contact.location }}</span>{% endif %}
+      {% if contact.email %}<span>{{ contact.email }}</span>{% endif %}
+      {% if contact.phone %}<span>{{ contact.phone }}</span>{% endif %}
+    </div>
+  </header>
+
+  <div class="letter">
+    <p>{{ greeting }}</p>
+    {% for para in paragraphs %}
+    <p>{{ para | mdbold }}</p>
+    {% endfor %}
+    <div class="sign">
+      <p>{{ closing }}</p>
+      <p class="name">{{ name }}</p>
+    </div>
+  </div>
+</body>
+</html>

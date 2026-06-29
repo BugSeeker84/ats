@@ -11,7 +11,7 @@ class Profile:
     id: str
     meta: dict
     profile_body: str  # full body of profile.md (generation source)
-    rules: str  # rules.md — this dev's resume/cover-letter + tailor rules
+    prompt: str  # prompt.md — this dev's resume/cover-letter + tailoring prompt
     template: str | None = None  # optional template.html
 
 
@@ -48,15 +48,18 @@ def load_profiles() -> list[Profile]:
         if not profile_md.exists():
             continue
         post = frontmatter.load(profile_md)
-        rules_file = d / "rules.md"
+        # The resume prompt lives in prompt.md (older profiles may still use rules.md).
+        prompt_file = d / "prompt.md"
+        if not prompt_file.exists():
+            prompt_file = d / "rules.md"
         template_file = d / "template.html"
         profiles.append(
             Profile(
                 id=d.name,
                 meta=_coerce_meta(d.name, post.metadata),
                 profile_body=post.content.strip(),
-                rules=rules_file.read_text(encoding="utf-8").strip()
-                if rules_file.exists()
+                prompt=prompt_file.read_text(encoding="utf-8").strip()
+                if prompt_file.exists()
                 else "",
                 template=template_file.read_text(encoding="utf-8").strip()
                 if template_file.exists()

@@ -21,17 +21,34 @@ cp .env.example .env      # then paste your Fireworks key (LLM_API_KEY) into .en
 Python 3.10+ required. After `pip install -e .` you can use either `ats <command>` or
 `python -m ats <command>`.
 
+## Project layout
+
+```
+ats/                  # Python package (the CLI + pipeline)
+  render/             # JSON content -> HTML -> PDF (deterministic, no LLM)
+profiles/<id>/        # one self-contained folder per developer (see below)
+shared/basic_rule.md  # company-wide tailoring rules, layered under each dev's rules.md
+templates/            # shared base resume/cover-letter templates
+sample-jds/           # example job descriptions for testing
+data/applications.csv # the application log
+output/               # generated resumes + cover letters
+```
+
 ## Profiles (the seed data)
 
-Each developer is a folder under `profiles/<id>/`:
+Each developer is a self-contained folder under `profiles/<id>/`:
 
 ```
 profiles/
   aws-senior/
     profile.md      # frontmatter (matcher fields) + full real experience (generator source)
     rules.md        # this dev's resume/cover-letter + tailoring rules
-    template.html   # OPTIONAL: an HTML skeleton/style to match
+    template.html   # OPTIONAL: per-profile HTML/Jinja layout (overrides templates/)
+    sources/        # OPTIONAL: original resume + hand-written prompt this profile came from
 ```
+
+A folder is only loaded as a profile once it has a `profile.md`; folders with just
+`sources/` are raw material waiting to be turned into a profile (via `ats import`).
 
 The fastest way to create a profile is to **import an existing resume** — the tool reads
 the file and drafts `profile.md` + a starter `rules.md` for you:
@@ -66,39 +83,44 @@ already applied to that company + role**, asks you to confirm (or type a differe
 id), then writes:
 
 ```
-output/<date>_<company>_<role>_<profile>/resume.html
-output/<date>_<company>_<role>_<profile>/cover-letter.html
+output/<Company> - <Full Name>/<CompactName>_Resume.html   (+ .pdf)
+output/<Company> - <Full Name>/<CompactName>_CoverLetter.html  (+ .pdf)
+output/<Company> - <Full Name>/JD.txt
 ```
 
-and appends a row to `data/applications.csv`. Each run also prints token usage and an
-estimated cost.
+and appends a row to `output/applications.csv` (number, date, profile, company, job title,
+salary). Each run also prints token usage and an estimated cost.
 
-## One-key flow (copy JD → hotkey → done)
+Per JD that's **two model calls**: one to score/select the candidate and extract the JD
+fields, and one to generate the resume + cover letter as validated JSON (rendered to
+HTML/PDF by code). Rule checks (bullet counts, ≥20-word bullets, bold keywords) run locally
+and only warn; add `--fix` to auto-correct with extra calls.
+
+## One-key flow (copy JD → hotkey → PDF opens)
 
 Read the JD straight from the clipboard, auto-pick the best candidate, generate, open the
-resume, and post a desktop notification:
+PDF, and post a desktop notification:
 
-```bash
+```
 ats generate --clipboard --yes --open --notify
 ```
 
-A ready-made launcher is installed at `~/.local/bin/ats-clip` that runs exactly this.
+**Windows** — a ready-made launcher is at `scripts\ats-clip.cmd`. Bind it to a global
+hotkey (creates a Start-Menu shortcut Windows registers):
 
-**Requirements (one-time):**
-
-```bash
-sudo apt install xclip      # clipboard reader (GNOME/X11); use wl-clipboard on Wayland
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\setup-hotkey.ps1                 # Ctrl+Alt+1
+powershell -ExecutionPolicy Bypass -File scripts\setup-hotkey.ps1 -HotKey "CTRL+ALT+J"
 ```
 
-**Bind it to Ctrl+1 (GNOME):** Settings → Keyboard → View and Customize Shortcuts →
-Custom Shortcuts → **+**, then:
-- Name: `ATS Resume`
-- Command: `/home/phoenix/.local/bin/ats-clip`
-- Shortcut: `Ctrl+1`
+Now copy a job description anywhere, press the hotkey, and the tailored PDF opens with a
+notification. (Clipboard, open, and notify all work natively on Windows — no extra tools.)
 
-Now: copy a job description anywhere, press **Ctrl+1**, and the tailored resume opens with
-a notification. (Selection sends each candidate's full profile but never their build rules;
-generation then applies the rules to the winner.)
+**Linux/macOS** — `scripts/setup-hotkey.sh` binds a GNOME shortcut to a launcher; clipboard
+needs `xclip` (X11) or `wl-clipboard` (Wayland), or `pbpaste` on macOS.
+
+(Selection sends each candidate's profile but never their resume prompt; generation then
+applies the prompt to the winner.)
 
 ## Configuration (`.env`)
 

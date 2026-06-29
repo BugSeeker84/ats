@@ -1,0 +1,29 @@
+Senior Software Engineer — Payments Platform
+Brex · Remote (United States)
+$185,000 – $225,000 + equity
+
+About the role
+We're hiring a Senior Software Engineer to help build and scale the core payments
+platform that moves billions of dollars for thousands of businesses. You'll design
+high-throughput, fault-tolerant backend services for authorization, ledgering, and money
+movement, and partner closely with risk and compliance teams.
+
+What you'll do
+- Design and operate distributed backend services for real-time payment authorization and settlement.
+- Build resilient ledger and reconciliation systems with strong consistency guarantees.
+- Improve reliability, latency, and observability of payment-critical services.
+- Integrate with card networks, banking partners, and third-party payment processors.
+- Mentor engineers and drive technical design reviews.
+
+What we're looking for
+- 6+ years building backend services at scale, ideally in fintech or payments.
+- Strong skills in a modern backend language (Go, Java, or Kotlin) and distributed systems.
+- Experience with event-driven architectures, Kafka, and relational databases (PostgreSQL).
+- Familiarity with cloud infrastructure (AWS), Kubernetes, and CI/CD.
+- A track record of shipping reliable, high-throughput systems.
+
+Nice to have
+- Experience with double-entry ledgers, idempotency, and exactly-once processing.
+- Exposure to PCI compliance and financial regulations.
+
+Fully remote within the US. Must be authorized to work in the United States.

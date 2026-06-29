@@ -5,16 +5,14 @@ import hashlib
 from . import config
 
 HEADER = [
-    "date",
-    "profile_id",
-    "profile_name",
-    "company",
-    "role",
-    "salary",
-    "location",
-    "jd_url",
-    "jd_hash",
-    "output_dir",
+    "number",     # running index, 1-based
+    "date",       # MM-DD
+    "profile",    # developer's display name
+    "company",    # JD company
+    "job_title",  # JD role
+    "salary",     # JD salary range (blank if none stated)
+    "folder",     # output subfolder name
+    "jd_hash",    # for duplicate detection
 ]
 
 
@@ -26,38 +24,48 @@ def hash_jd(text: str) -> str:
 
 
 def _ensure_file() -> None:
-    config.DATA_DIR.mkdir(parents=True, exist_ok=True)
+    config.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     if not config.APPLICATIONS_CSV.exists():
-        with config.APPLICATIONS_CSV.open("w", newline="", encoding="utf-8") as f:
+        # utf-8-sig writes a BOM so Excel renders em dashes / accents correctly.
+        with config.APPLICATIONS_CSV.open("w", newline="", encoding="utf-8-sig") as f:
             csv.writer(f).writerow(HEADER)
 
 
 def read_applications() -> list[dict]:
     if not config.APPLICATIONS_CSV.exists():
         return []
-    with config.APPLICATIONS_CSV.open(newline="", encoding="utf-8") as f:
+    with config.APPLICATIONS_CSV.open(newline="", encoding="utf-8-sig") as f:
         return list(csv.DictReader(f))
 
 
-def append_application(app: dict) -> None:
+def append_application(app: dict) -> dict:
+    """Append one row, assigning the next running number. Returns the stored row."""
     _ensure_file()
+    row = {**app, "number": len(read_applications()) + 1}
     with config.APPLICATIONS_CSV.open("a", newline="", encoding="utf-8") as f:
-        csv.writer(f).writerow([app.get(k, "") for k in HEADER])
+        csv.writer(f).writerow([row.get(k, "") for k in HEADER])
+    return row
 
 
 def _norm(s: str) -> str:
     return " ".join((s or "").lower().split())
 
 
-def find_prior_applications(company: str, role: str, jd_hash: str = "") -> list[dict]:
-    """Prior applications to the same job — matched by exact JD-hash OR by the same
-    company + role (case/space-insensitive). Powers the "already applied" alert.
+def find_prior_applications(company: str, profile_name: str) -> list[dict]:
+    """Prior applications by the SAME profile to the SAME company — i.e. the output-folder
+    identity (<Company> - <Name>). This is what we avoid repeating; different profiles may
+    still apply to the same company.
     """
-    c, r = _norm(company), _norm(role)
-    out = []
-    for a in read_applications():
-        same_jd = bool(jd_hash) and a.get("jd_hash", "") == jd_hash
-        same_cr = bool(c) and bool(r) and _norm(a.get("company", "")) == c and _norm(a.get("role", "")) == r
-        if same_jd or same_cr:
-            out.append(a)
-    return out
+    c, p = _norm(company), _norm(profile_name)
+    if not c or not p:
+        return []
+    return [
+        a
+        for a in read_applications()
+        if _norm(a.get("company", "")) == c and _norm(a.get("profile", "")) == p
+    ]
+
+
+def has_applied(company: str, profile_name: str) -> bool:
+    """True if this profile already has an application logged for this company."""
+    return bool(find_prior_applications(company, profile_name))

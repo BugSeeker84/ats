@@ -10,10 +10,12 @@ ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env")
 PROFILES_DIR = ROOT / "profiles"
 OUTPUT_DIR = ROOT / "output"
-DATA_DIR = ROOT / "data"
-APPLICATIONS_CSV = DATA_DIR / "applications.csv"
+# Integrated results log lives inside the output folder (one row per generated application).
+APPLICATIONS_CSV = OUTPUT_DIR / "applications.csv"
+# Shared base templates (per-profile templates at profiles/<id>/template.html override these).
+TEMPLATES_DIR = ROOT / "templates"
 # Company-wide tailoring policy applied to every profile (layered under each dev's own rules.md).
-BASIC_RULES_FILE = ROOT / "basic_rule.md"
+BASIC_RULES_FILE = ROOT / "shared" / "basic_rule.md"
 
 
 def global_rules() -> str:

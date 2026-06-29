@@ -3,6 +3,7 @@ import json
 import re
 
 from openai import OpenAI
+from pydantic import ValidationError
 
 from . import config
 
@@ -57,6 +58,40 @@ def complete(
     if not content:
         raise RuntimeError("Model returned an empty response.")
     return content.strip()
+
+
+def complete_structured(
+    model: str,
+    system: str,
+    user: str,
+    schema,
+    max_attempts: int = 3,
+    temperature: float | None = None,
+):
+    """Get JSON that validates against a pydantic model, retrying on failure.
+
+    On each invalid reply, the validation/parse error is fed back so the model can
+    self-correct. Raises RuntimeError if it never produces valid output.
+    """
+    last_error = ""
+    prompt = user
+    for _ in range(max_attempts):
+        text = complete(model, system, prompt, temperature=temperature)
+        try:
+            return schema.model_validate(extract_json(text))
+        except (ValueError, ValidationError) as err:
+            last_error = str(err)
+            prompt = (
+                user
+                + "\n\nYour previous reply was not valid and was rejected:\n"
+                + last_error[:1200]
+                + "\n\nReturn ONLY corrected JSON matching the required shape — "
+                "no commentary, no code fences."
+            )
+    raise RuntimeError(
+        f"Model did not return valid structured output after {max_attempts} attempts. "
+        f"Last error:\n{last_error}"
+    )
 
 
 def extract_json(text: str):

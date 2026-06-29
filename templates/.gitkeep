@@ -1,0 +1,2 @@
+# Shared base resume/cover-letter templates live here (Phase 2).
+# Per-profile templates override these at profiles/<id>/template.html.

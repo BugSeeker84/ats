@@ -1,5 +1,6 @@
 """Command-line interface: import / match / generate / list / profiles."""
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -9,7 +10,7 @@ from pathlib import Path
 from . import config
 from .applications import (
     append_application,
-    find_prior_applications,
+    has_applied,
     hash_jd,
     read_applications,
 )
@@ -35,38 +36,98 @@ RED = _color("31")
 
 
 def _read_clipboard() -> str:
-    """Read the system clipboard (X11 xclip/xsel, or Wayland wl-paste)."""
-    for cmd in (
-        ["xclip", "-selection", "clipboard", "-o"],
-        ["xsel", "--clipboard", "--output"],
-        ["wl-paste", "--no-newline"],
-    ):
-        if shutil.which(cmd[0]):
-            try:
-                return subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
-            except subprocess.CalledProcessError:
-                continue
+    """Read text from the system clipboard (cross-platform, best-effort)."""
+    # 1) tkinter — stdlib, unicode-safe, works on Windows/macOS/Linux with a desktop session.
+    try:
+        import tkinter
+
+        root = tkinter.Tk()
+        root.withdraw()
+        try:
+            text = root.clipboard_get()
+        finally:
+            root.destroy()
+        if text and text.strip():
+            return text
+    except Exception:
+        pass
+    # 2) Platform CLIs.
+    if sys.platform == "win32":
+        try:
+            res = subprocess.run(
+                ["powershell", "-NoProfile", "-Command", "Get-Clipboard -Raw"],
+                capture_output=True,
+                text=True,
+            )
+            if res.stdout and res.stdout.strip():
+                return res.stdout
+        except Exception:
+            pass
+    elif sys.platform == "darwin":
+        if shutil.which("pbpaste"):
+            return subprocess.run(["pbpaste"], capture_output=True, text=True).stdout
+    else:
+        for cmd in (
+            ["xclip", "-selection", "clipboard", "-o"],
+            ["xsel", "--clipboard", "--output"],
+            ["wl-paste", "--no-newline"],
+        ):
+            if shutil.which(cmd[0]):
+                try:
+                    return subprocess.run(cmd, capture_output=True, text=True, check=True).stdout
+                except subprocess.CalledProcessError:
+                    continue
     raise RuntimeError(
-        "No clipboard tool found. Install one (GNOME/X11): sudo apt install xclip"
+        "Could not read the clipboard. On Linux install xclip (sudo apt install xclip); "
+        "on Windows/macOS it should work out of the box (copy a JD first)."
     )
 
 
+def _ps_quote(s: str) -> str:
+    """Quote a string for a PowerShell single-quoted literal."""
+    return "'" + (s or "").replace("'", "''") + "'"
+
+
 def _notify(title: str, body: str) -> None:
-    """Best-effort desktop notification (no-op if notify-send is missing)."""
-    if shutil.which("notify-send"):
-        try:
+    """Best-effort desktop notification (no-op on failure)."""
+    try:
+        if sys.platform == "win32":
+            ps = (
+                "Add-Type -AssemblyName System.Windows.Forms;"
+                "Add-Type -AssemblyName System.Drawing;"
+                "$n=New-Object System.Windows.Forms.NotifyIcon;"
+                "$n.Icon=[System.Drawing.SystemIcons]::Information;"
+                "$n.Visible=$true;"
+                f"$n.ShowBalloonTip(5000,{_ps_quote(title)},{_ps_quote(body)},'Info');"
+                "Start-Sleep -Seconds 6;$n.Dispose()"
+            )
+            subprocess.Popen(
+                ["powershell", "-NoProfile", "-WindowStyle", "Hidden", "-Command", ps],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+        elif sys.platform == "darwin":
+            subprocess.run(
+                ["osascript", "-e", f'display notification "{body}" with title "{title}"'],
+                check=False,
+            )
+        elif shutil.which("notify-send"):
             subprocess.run(["notify-send", title, body], check=False)
-        except Exception:
-            pass
+    except Exception:
+        pass
 
 
 def _open_path(path: str) -> None:
-    """Best-effort open in the default app (no-op if xdg-open is missing)."""
-    if shutil.which("xdg-open"):
-        try:
+    """Best-effort open in the default app (no-op on failure)."""
+    try:
+        if sys.platform == "win32":
+            os.startfile(path)  # type: ignore[attr-defined]
+        elif sys.platform == "darwin":
+            subprocess.Popen(["open", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        elif shutil.which("xdg-open"):
             subprocess.Popen(["xdg-open", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        except Exception:
-            pass
+    except Exception:
+        pass
 
 
 def _read_jd(path_or_dash: str | None, text: str | None, clipboard: bool = False) -> str:
@@ -127,12 +188,13 @@ def _print_usage() -> None:
     )
 
 
-def _today() -> str:
-    return datetime.now(timezone.utc).date().isoformat()
+def _today_short() -> str:
+    """Month + day only, e.g. '06-28'."""
+    return datetime.now(timezone.utc).strftime("%m-%d")
 
 
 def _gateway_blocked(result: dict) -> bool:
-    """basic_rule.md #4: skip JDs requiring clearance or onsite. Alerts and returns True."""
+    """shared/basic_rule.md #4: skip JDs requiring clearance or onsite. Alerts and returns True."""
     g = result.get("gateway") or {}
     if not g.get("blocked"):
         return False
@@ -142,7 +204,7 @@ def _gateway_blocked(result: dict) -> bool:
         RED(BOLD("⛔ JD SKIPPED"))
         + RED(f" — {jd.get('role', '')} @ {jd.get('company', '')}: {reason}")
     )
-    print(DIM("   (basic_rule.md: ignore JDs that require a clearance or on-site/hybrid work.)"))
+    print(DIM("   (shared/basic_rule.md: ignore JDs that require a clearance or on-site/hybrid work.)"))
     return True
 
 
@@ -197,44 +259,49 @@ def cmd_generate(args) -> None:
         return
     _print_ranking(result)
 
-    # Duplicate-application alert.
-    jd_hash = hash_jd(jd_text)
-    prior = find_prior_applications(result["jd"]["company"], result["jd"]["role"], jd_hash)
-    if prior:
-        print(
-            RED(BOLD("⚠  ALREADY APPLIED"))
-            + RED(f" — you applied to {result['jd']['role']} @ {result['jd']['company']} before:")
-        )
-        for p in prior:
-            print(
-                RED(
-                    f"     · {p.get('date')} as {p.get('profile_name')} "
-                    f"({p.get('profile_id')}) → {p.get('output_dir')}"
-                )
-            )
-        print()
-        # Non-interactive (hotkey) or unconfirmed: do NOT silently make a duplicate.
-        if not args.force:
-            if args.yes:
-                msg = f"Already applied to {result['jd']['role']} @ {result['jd']['company']} — skipped."
-                print(YELLOW(msg + " Re-run with --force to generate anyway."))
-                if args.notify:
-                    _notify("ATS — already applied", msg)
-                _print_usage()
-                return
-
+    # Choose the candidate (recommended, or an explicit --profile).
+    forced = bool(args.profile)
     chosen_id = args.profile or result["recommended_id"]
     if not get_profile(chosen_id):
         raise RuntimeError(f"Unknown profile id: {chosen_id}")
+    chosen = get_profile(chosen_id)
+    company = result["jd"]["company"]
 
+    # Avoid sending the SAME profile to the SAME company twice (the output-folder identity).
+    # Don't halt: warn briefly and keep going by switching to the next-best candidate who
+    # hasn't applied here. Only --force overrides.
+    if not args.force and has_applied(company, chosen.meta["name"]):
+        if forced:
+            msg = f"{chosen.meta['name']} already applied to {company} — skipped (use --force to repeat)."
+            print(YELLOW("⚠  " + msg))
+            if args.notify:
+                _notify("ATS — already applied", msg)
+            _print_usage()
+            return
+        alt = next((s for s in result["ranked"] if not has_applied(company, s["name"])), None)
+        if alt:
+            print(
+                YELLOW(
+                    f"⚠  {chosen.meta['name']} already applied to {company} — "
+                    f"using next-best {alt['name']} instead."
+                )
+            )
+            chosen_id = alt["id"]
+            chosen = get_profile(chosen_id)
+        else:
+            msg = f"All candidates already applied to {company} — skipping."
+            print(YELLOW("⚠  " + msg))
+            if args.notify:
+                _notify("ATS — skipped", msg)
+            _print_usage()
+            return
+
+    # Interactive confirm (skipped with --yes): accept, or type a different profile id.
     if not args.yes:
-        chosen = get_profile(chosen_id)
-        prompt = (
-            (RED("Duplicate exists. ") if prior else "")
-            + f"Generate resume + cover letter for {BOLD(chosen.meta['name'])} ({chosen_id})? "
+        answer = input(
+            f"Generate resume + cover letter for {BOLD(chosen.meta['name'])} ({chosen_id})? "
             + DIM("[Y/n, or type another profile id] ")
-        )
-        answer = input(prompt).strip()
+        ).strip()
         low = answer.lower()
         if low in ("n", "no"):
             print(YELLOW("Aborted. Nothing generated."))
@@ -248,34 +315,41 @@ def cmd_generate(args) -> None:
 
     profile = get_profile(chosen_id)
     print(DIM(f'Generating with profile "{chosen_id}"…'))
-    docs = run_generate(profile, jd_text, result["jd"])
+    docs = run_generate(profile, jd_text, result["jd"], fix_attempts=(2 if args.fix else 0))
 
-    date_iso = _today()
-    out_dir = save_docs(docs, chosen_id, result["jd"], date_iso)
+    issues = docs.get("issues") or []
+    if issues:
+        print(YELLOW(f"⚠  {len(issues)} rule issue(s) remained after auto-fix:"))
+        for i in issues:
+            print(YELLOW("     · " + i))
+
+    out = save_docs(docs, profile, result["jd"], jd_text, pdf=not args.no_pdf)
 
     append_application(
         {
-            "date": date_iso,
-            "profile_id": chosen_id,
-            "profile_name": profile.meta["name"],
+            "date": _today_short(),
+            "profile": profile.meta["name"],
             "company": result["jd"]["company"],
-            "role": result["jd"]["role"],
+            "job_title": result["jd"]["role"],
             "salary": result["jd"].get("salary", ""),
-            "location": result["jd"].get("location", ""),
-            "jd_url": args.jd_url or "",
-            "jd_hash": jd_hash,
-            "output_dir": out_dir,
+            "folder": Path(out["dir"]).name,
+            "jd_hash": hash_jd(jd_text),
         }
     )
 
-    resume_path = out_dir + "/resume.html"
     print()
     print(GREEN("✓ Generated:"))
-    print("   " + resume_path)
-    print("   " + out_dir + "/cover-letter.html")
-    print(DIM("   Logged to data/applications.csv"))
+    for key in ("resume_pdf", "cover_pdf", "resume_html", "cover_html"):
+        if out.get(key):
+            print("   " + out[key])
+    print("   " + out["jd"])
+    if out.get("pdf_error"):
+        print(YELLOW("   PDF skipped: " + out["pdf_error"]))
+    print(DIM("   Logged to output/applications.csv"))
     _print_usage()
 
+    # Prefer the PDF (the deliverable); fall back to HTML if PDF was skipped.
+    primary = out.get("resume_pdf") or out["resume_html"]
     if args.notify:
         jd = result["jd"]
         _notify(
@@ -283,7 +357,7 @@ def cmd_generate(args) -> None:
             f"{profile.meta['name']} → {jd.get('role', '')} @ {jd.get('company', '')}",
         )
     if args.open:
-        _open_path(resume_path)
+        _open_path(primary)
 
 
 def cmd_list(args) -> None:
@@ -294,8 +368,10 @@ def cmd_list(args) -> None:
     print(BOLD(f"\n{len(apps)} application(s):\n"))
     for a in apps:
         line = (
-            f"  {a.get('date')}  {BOLD(a.get('role', ''))} @ {a.get('company', '')}"
-            + DIM(f"  · {a.get('profile_name', '')} ({a.get('profile_id', '')})")
+            f"  #{str(a.get('number', '')).rjust(2)}  {a.get('date', '')}  "
+            + BOLD(a.get("job_title", ""))
+            + f" @ {a.get('company', '')}"
+            + DIM(f"  · {a.get('profile', '')}")
         )
         if a.get("salary"):
             line += DIM(f"  · {a.get('salary')}")
@@ -350,6 +426,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_gen.add_argument("--yes", action="store_true", help="Skip the confirmation prompt")
     p_gen.add_argument("--force", action="store_true", help="Generate even if already applied to this job")
     p_gen.add_argument("--open", action="store_true", help="Open the resume after generating")
+    p_gen.add_argument("--no-pdf", dest="no_pdf", action="store_true", help="Write HTML only, skip PDF rendering")
+    p_gen.add_argument("--fix", action="store_true", help="Re-prompt to auto-fix rule violations (extra LLM calls)")
     p_gen.add_argument("--notify", action="store_true", help="Send a desktop notification when done")
     p_gen.set_defaults(func=cmd_generate)
 
