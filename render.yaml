@@ -1,0 +1,24 @@
+# Render Blueprint: single Docker web service (FastAPI backend + static frontend).
+# Deploy via Render dashboard -> "New +" -> "Blueprint" pointed at this repo.
+services:
+  - type: web
+    name: ats-bidder
+    runtime: docker
+    plan: free                 # 512MB RAM, spins down on idle. Bump to "starter" if Chromium OOMs.
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /api/health
+    envVars:
+      # Required: your OpenAI-compatible API key (Fireworks by default). Set in the dashboard.
+      - key: LLM_API_KEY
+        sync: false
+      # Strongly recommended on a public URL: shared access token bidders must enter.
+      # Leave unset only for a throwaway demo (the platform is OPEN without it).
+      - key: ACCESS_TOKEN
+        sync: false
+      # Optional overrides (sensible defaults live in ats/config.py) — uncomment to use:
+      # - key: LLM_BASE_URL
+      #   sync: false
+      # - key: GENERATE_MODEL
+      #   sync: false
+      # - key: MATCH_MODEL
+      #   sync: false

@@ -1,0 +1,22 @@
+# Keep the build context (and image) lean and secret-free.
+.git
+.gitignore
+.venv
+.venv-linux
+venv
+**/__pycache__
+*.py[cod]
+*.egg-info
+.pytest_cache
+
+# Secrets and runtime artifacts (never bake into the image).
+.env
+.env.local
+output
+data/applications.csv
+*.log
+.DS_Store
+
+# Docs / dev-only tooling not needed at runtime.
+scripts
+.claude
