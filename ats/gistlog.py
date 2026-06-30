@@ -9,13 +9,35 @@ Create an (empty) private gist first; its id goes in GIST_ID.
 """
 import json
 import os
+import urllib.error
 import urllib.request
 
+
+def _clean_gist_id(raw: str) -> str:
+    """Tolerate common paste mistakes: full gist URL, the 'gist:<id>' title form, slashes."""
+    gid = (raw or "").strip().strip("/")
+    if "/" in gid:                       # pasted the whole URL -> keep the last segment
+        gid = gid.rsplit("/", 1)[-1]
+    if gid.startswith("gist:"):          # pasted the page-title form "gist:<id>"
+        gid = gid[len("gist:"):]
+    # A gist id may carry a "<user>/<hash>" form in some copies; keep just the hash.
+    return gid.split("#", 1)[0].strip()
+
+
 _TOKEN = os.getenv("GIST_TOKEN", "").strip()
-_GIST_ID = os.getenv("GIST_ID", "").strip()
+_GIST_ID = _clean_gist_id(os.getenv("GIST_ID", ""))
 _FILENAME = os.getenv("GIST_FILENAME", "applications.csv").strip() or "applications.csv"
 # Overridable for GitHub Enterprise or local testing; defaults to public GitHub.
 _API_BASE = os.getenv("GIST_API_BASE", "https://api.github.com").rstrip("/")
+
+# Actionable hints mapped from GitHub's API status codes (the raw 404 is useless on its own).
+_ERR_HINTS = {
+    401: "GIST_TOKEN is invalid or expired.",
+    403: "GIST_TOKEN is missing the 'gist' scope (classic PAT) or lacks write access.",
+    404: ("gist not found — verify GIST_ID is the BARE hash (no 'gist:' prefix / URL), and "
+          "that GIST_TOKEN belongs to the account that OWNS this gist (secret gists are "
+          "owner-only via the API)."),
+}
 
 
 def enabled() -> bool:
@@ -31,8 +53,14 @@ def _request(method: str, body: dict | None = None) -> dict:
     req.add_header("User-Agent", "ats-bidder")
     if data is not None:
         req.add_header("Content-Type", "application/json")
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            return json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as err:
+        hint = _ERR_HINTS.get(err.code, "")
+        raise RuntimeError(
+            f"GitHub gist API returned {err.code} for gist '{_GIST_ID}'. {hint}".strip()
+        ) from err
 
 
 def read_text() -> str | None:
