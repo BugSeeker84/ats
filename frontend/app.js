@@ -108,32 +108,34 @@ async function loadApplications() {
   });
   // wire up download links
   tb.querySelectorAll("a[data-folder]").forEach((a) => {
-    a.addEventListener("click", (e) => { e.preventDefault(); download(a.dataset.folder, a.dataset.file); });
+    a.addEventListener("click", (e) => { e.preventDefault(); download(a.dataset.folder, a.dataset.file, a.dataset.dlname); });
   });
 }
 
-function compact(name) { return (name || "").replace(/[^A-Za-z0-9]/g, "") || "Resume"; }
+function compact(name, fallback) { return (name || "").replace(/[^A-Za-z0-9]/g, "") || (fallback || "Resume"); }
 
 function filesFor(a) {
   if (!a.folder) return "";
-  const stem = compact(a.profile);
+  const stem = compact(a.profile);            // matches the stored filename (fetch key)
+  const co = compact(a.company, "Company");    // for the friendly save-as name
+  // [label, stored filename to fetch, friendly download name]
   const items = [
-    ["Resume PDF", `${stem}_Resume.pdf`],
-    ["Cover PDF", `${stem}_CoverLetter.pdf`],
+    ["Resume PDF", `${stem}_Resume.pdf`, `Resume_${stem}_${co}.pdf`],
+    ["Cover PDF", `${stem}_CoverLetter.pdf`, `CoverLetter_${stem}_${co}.pdf`],
   ];
-  return items.map(([label, file]) =>
-    `<a href="#" data-folder="${encodeURIComponent(a.folder)}" data-file="${encodeURIComponent(file)}">${label}</a>`
+  return items.map(([label, file, dlname]) =>
+    `<a href="#" data-folder="${encodeURIComponent(a.folder)}" data-file="${encodeURIComponent(file)}" data-dlname="${encodeURIComponent(dlname)}">${label}</a>`
   ).join("");
 }
 
-async function download(folder, file) {
+async function download(folder, file, dlname) {
   try {
     const res = await fetch(`/api/files/${folder}/${file}`, { headers: headers() });
     if (!res.ok) { log(`Could not fetch ${decodeURIComponent(file)}.`, "err"); return; }
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
-    a.href = url; a.download = decodeURIComponent(file); a.click();
+    a.href = url; a.download = decodeURIComponent(dlname || file); a.click();
     URL.revokeObjectURL(url);
   } catch (e) { log("Download error: " + e.message, "err"); }
 }
