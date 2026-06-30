@@ -22,19 +22,20 @@ services:
       #   sync: false
       # - key: MATCH_MODEL
       #   sync: false
-      # Object storage (Supabase) so generated files + history persist past the ephemeral
-      # disk. Set all four required keys in the dashboard to turn it on.
-      - key: S3_ENDPOINT_URL
-        sync: false
-      - key: S3_REGION
-        sync: false
-      - key: S3_BUCKET
-        sync: false
-      - key: S3_ACCESS_KEY_ID
-        sync: false
-      - key: S3_SECRET_ACCESS_KEY
-        sync: false
-      # Alternative to S3: persist ONLY the apply log to a private GitHub gist.
+      # Object storage (Supabase/S3) for persisting generated files + history. DISABLED
+      # for now (we use the gist below). To re-enable later, uncomment these and set all
+      # four required values in the dashboard. Leave them unset to avoid 500s.
+      # - key: S3_ENDPOINT_URL
+      #   sync: false
+      # - key: S3_REGION
+      #   sync: false
+      # - key: S3_BUCKET
+      #   sync: false
+      # - key: S3_ACCESS_KEY_ID
+      #   sync: false
+      # - key: S3_SECRET_ACCESS_KEY
+      #   sync: false
+      # Persist ONLY the apply log to a private GitHub gist (active backend).
       # Set both to enable; takes precedence over S3 for the log (PDFs stay ephemeral).
       - key: GIST_TOKEN
         sync: false

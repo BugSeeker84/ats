@@ -9,7 +9,6 @@ Create an (empty) private gist first; its id goes in GIST_ID.
 """
 import json
 import os
-import urllib.error
 import urllib.request
 
 _TOKEN = os.getenv("GIST_TOKEN", "").strip()
@@ -37,21 +36,19 @@ def _request(method: str, body: dict | None = None) -> dict:
 
 
 def read_text() -> str | None:
-    """Return the gist file's content, or None if the gist/file is missing/unreachable."""
-    try:
-        payload = _request("GET")
-    except urllib.error.URLError:
-        return None
+    """Return the gist file's content, or None if the gist exists but has no such file yet.
+
+    Raises on a real API error (bad token/id, network) so callers don't silently
+    overwrite the log from an empty read. read_applications() tolerates the raise.
+    """
+    payload = _request("GET")
     file = (payload.get("files") or {}).get(_FILENAME)
     if not file:
         return None
     # The log is tiny and never truncated; honor raw_url defensively if it ever is.
     if file.get("truncated") and file.get("raw_url"):
-        try:
-            with urllib.request.urlopen(file["raw_url"], timeout=15) as r:
-                return r.read().decode("utf-8")
-        except urllib.error.URLError:
-            return None
+        with urllib.request.urlopen(file["raw_url"], timeout=15) as r:
+            return r.read().decode("utf-8")
     return file.get("content")
 
 

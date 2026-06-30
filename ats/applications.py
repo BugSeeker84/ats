@@ -2,6 +2,7 @@
 import csv
 import hashlib
 import io
+import sys
 
 from . import config, gistlog, storage
 
@@ -48,25 +49,39 @@ def _parse_csv(text: str | None) -> list[dict]:
     return list(csv.DictReader(io.StringIO(text))) if text else []
 
 
-def read_applications() -> list[dict]:
-    # Backends in priority order: GitHub gist, S3 object, local file.
+def _read_backend_text() -> str | None:
+    """Raw CSV text from the active backend (gist > S3 > local), or None if empty.
+
+    Raises if a configured external store is unreachable/misconfigured — callers
+    that rewrite the log rely on this so a failed read can't clobber it.
+    """
     if gistlog.enabled():
-        return _parse_csv(gistlog.read_text())
+        return gistlog.read_text()
     if storage.enabled():
-        return _parse_csv(storage.read_text(_CSV_KEY))
+        return storage.read_text(_CSV_KEY)
     if not config.APPLICATIONS_CSV.exists():
+        return None
+    return config.APPLICATIONS_CSV.read_text(encoding="utf-8-sig")
+
+
+def read_applications() -> list[dict]:
+    # Tolerant: a broken/misconfigured external store must never break sign-in or the
+    # applications table. Degrade to an empty list and surface the cause in the logs.
+    try:
+        return _parse_csv(_read_backend_text())
+    except Exception as err:  # noqa: BLE001
+        print(f"WARNING: could not read the application log: {err}", file=sys.stderr)
         return []
-    with config.APPLICATIONS_CSV.open(newline="", encoding="utf-8-sig") as f:
-        return list(csv.DictReader(f))
 
 
 def append_application(app: dict) -> dict:
     """Append one row, assigning the next running number. Returns the stored row.
 
-    For the gist/S3 backends the whole index is rewritten in one atomic call;
-    generation is serialized by a lock upstream, so the read-modify-write is safe.
+    Uses a strict read (raises on backend error) so a transient/misconfig failure
+    can't clobber the stored log by rewriting it from an empty list. Generation is
+    serialized by a lock upstream, so the read-modify-write is safe.
     """
-    rows = read_applications()
+    rows = _parse_csv(_read_backend_text())
     row = {**app, "number": len(rows) + 1}
     if gistlog.enabled():
         gistlog.write_text(_rows_to_csv([*rows, row]))
