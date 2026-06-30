@@ -63,36 +63,68 @@ async function loadProfiles() {
   } catch (e) { /* non-fatal */ }
 }
 
-async function submitBid() {
+// FIFO queue: paste JDs back-to-back without waiting; a single worker runs them in order
+// (the server also serializes generation, so one-at-a-time keeps things predictable).
+const queue = [];
+let processing = false;
+
+function updateQ() {
+  const el = $("qstatus");
+  if (!el) return;
+  const waiting = queue.length;
+  el.textContent = processing
+    ? `⏳ generating…${waiting ? ` · ${waiting} queued` : ""}`
+    : (waiting ? `${waiting} queued` : "");
+}
+
+function enqueueBid() {
   const jd = $("jd").value.trim();
   if (!jd) { log("Paste a JD first.", "warn"); return; }
-  $("submit").disabled = true;
-  log("JD received — matching candidate and generating…", "dim");
-  try {
-    const r = await api("/api/bid", {
-      method: "POST", json: true,
-      body: JSON.stringify({ jd_text: jd, profile_id: $("profile").value || null, force: $("force").checked }),
-    });
-    const jd0 = r.jd || {};
-    if (r.status === "generated") {
-      if (r.switched_from) log(`${r.switched_from} already applied to ${jd0.company} — switched to next-best.`, "warn");
-      log(`✓ Resume for ${r.profile} → ${jd0.role || "role"} @ ${jd0.company || "company"} generated.`, "ok");
-      if (r.issues && r.issues.length) log(`(${r.issues.length} rule warning(s))`, "warn");
-      $("jd").value = "";
-      await loadApplications();
-    } else if (r.status === "skipped") {
-      log("⚠ " + (r.message || "Skipped."), "warn");
-    } else if (r.status === "blocked") {
-      log(`⛔ JD skipped — ${r.message}`, "warn");
-    } else {
-      log("Error: " + (r.message || "unknown"), "err");
+  // Snapshot the profile/force choices now, since they may change for the next JD.
+  queue.push({ jd_text: jd, profile_id: $("profile").value || null, force: $("force").checked });
+  $("jd").value = "";
+  $("jd").focus();
+  log(`➕ Queued — ${queue.length + (processing ? 1 : 0)} in line.`, "dim");
+  updateQ();
+  processQueue();
+}
+
+async function processQueue() {
+  if (processing) return;        // a worker is already draining the queue
+  processing = true;
+  updateQ();
+  while (queue.length) {
+    const item = queue.shift();
+    updateQ();
+    log(`Matching candidate and generating…${queue.length ? ` (${queue.length} still queued)` : ""}`, "dim");
+    try {
+      const r = await api("/api/bid", { method: "POST", json: true, body: JSON.stringify(item) });
+      const jd0 = r.jd || {};
+      if (r.status === "generated") {
+        if (r.switched_from) log(`${r.switched_from} already applied to ${jd0.company} — switched to next-best.`, "warn");
+        log(`✓ Resume for ${r.profile} → ${jd0.role || "role"} @ ${jd0.company || "company"} generated.`, "ok");
+        if (r.issues && r.issues.length) log(`(${r.issues.length} rule warning(s))`, "warn");
+        await loadApplications();
+      } else if (r.status === "skipped") {
+        log("⚠ " + (r.message || "Skipped."), "warn");
+      } else if (r.status === "blocked") {
+        log(`⛔ JD skipped — ${r.message}`, "warn");
+      } else {
+        log("Error: " + (r.message || "unknown"), "err");
+      }
+    } catch (e) {
+      if (e.message === "unauthorized") {
+        queue.length = 0;        // drop the rest; the user must re-authenticate
+        processing = false;
+        updateQ();
+        showApp(false);
+        return;
+      }
+      log("Error: " + e.message, "err");   // skip this one, keep draining the rest
     }
-  } catch (e) {
-    if (e.message === "unauthorized") { showApp(false); return; }
-    log("Error: " + e.message, "err");
-  } finally {
-    $("submit").disabled = false;
   }
+  processing = false;
+  updateQ();
 }
 
 async function loadApplications() {
@@ -144,7 +176,7 @@ function esc(s) { return (s == null ? "" : String(s)).replace(/[&<>"]/g, (c) => 
 
 $("connect").addEventListener("click", connect);
 $("token").addEventListener("keydown", (e) => { if (e.key === "Enter") connect(); });
-$("submit").addEventListener("click", submitBid);
+$("submit").addEventListener("click", enqueueBid);
 $("refresh").addEventListener("click", () => loadApplications().catch((e) => log(e.message, "err")));
 
 // Auto-connect if we already have a token.
