@@ -44,3 +44,12 @@ td a { color:var(--accent); cursor:pointer; margin-right:8px; text-decoration:no
 td a:hover { text-decoration:underline; }
 
 .error { color:var(--err); font-size:13px; margin-top:8px; }
+
+.queue { display:flex; flex-direction:column; gap:6px; margin-top:10px; }
+.queue .qitem { display:flex; align-items:center; gap:10px; background:var(--bg);
+                border:1px solid var(--rule); border-radius:8px; padding:6px 10px; }
+.queue .qnum { color:var(--muted); font-weight:700; font-variant-numeric:tabular-nums; }
+.queue .qtext { flex:1; min-width:0; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.queue .qmeta { color:var(--muted); font-size:12px; white-space:nowrap; }
+.queue .qdel { background:transparent; color:var(--err); border:1px solid var(--rule);
+               padding:2px 9px; border-radius:6px; font-weight:700; line-height:1.4; }

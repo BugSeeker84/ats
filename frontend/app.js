@@ -67,6 +67,7 @@ async function loadProfiles() {
 // (the server also serializes generation, so one-at-a-time keeps things predictable).
 const queue = [];
 let processing = false;
+let seq = 0;
 
 function updateQ() {
   const el = $("qstatus");
@@ -77,28 +78,57 @@ function updateQ() {
     : (waiting ? `${waiting} queued` : "");
 }
 
+function renderQueue() {
+  updateQ();
+  const box = $("queue");
+  if (!box) return;
+  box.innerHTML = queue.map((q, i) =>
+    `<div class="qitem"><span class="qnum">${i + 1}</span>` +
+    `<span class="qtext">${esc(q.preview)}</span>` +
+    `<span class="qmeta">${esc(q.profileLabel)}${q.force ? " · force" : ""}</span>` +
+    `<button class="qdel" data-id="${q.id}" title="Remove from queue">✕</button></div>`
+  ).join("");
+  box.querySelectorAll("button.qdel").forEach((b) =>
+    b.addEventListener("click", () => removeQueued(Number(b.dataset.id)))
+  );
+}
+
+function removeQueued(id) {
+  const i = queue.findIndex((q) => q.id === id);
+  if (i >= 0) { queue.splice(i, 1); renderQueue(); }
+}
+
 function enqueueBid() {
   const jd = $("jd").value.trim();
   if (!jd) { log("Paste a JD first.", "warn"); return; }
   // Snapshot the profile/force choices now, since they may change for the next JD.
-  queue.push({ jd_text: jd, profile_id: $("profile").value || null, force: $("force").checked });
+  const sel = $("profile");
+  queue.push({
+    id: ++seq,
+    jd_text: jd,
+    profile_id: sel.value || null,
+    force: $("force").checked,
+    preview: jd.replace(/\s+/g, " ").slice(0, 70),
+    profileLabel: sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex].text : "Auto — best match",
+  });
   $("jd").value = "";
   $("jd").focus();
   log(`➕ Queued — ${queue.length + (processing ? 1 : 0)} in line.`, "dim");
-  updateQ();
+  renderQueue();
   processQueue();
 }
 
 async function processQueue() {
   if (processing) return;        // a worker is already draining the queue
   processing = true;
-  updateQ();
+  renderQueue();
   while (queue.length) {
     const item = queue.shift();
-    updateQ();
+    renderQueue();
     log(`Matching candidate and generating…${queue.length ? ` (${queue.length} still queued)` : ""}`, "dim");
     try {
-      const r = await api("/api/bid", { method: "POST", json: true, body: JSON.stringify(item) });
+      const r = await api("/api/bid", { method: "POST", json: true,
+        body: JSON.stringify({ jd_text: item.jd_text, profile_id: item.profile_id, force: item.force }) });
       const jd0 = r.jd || {};
       if (r.status === "generated") {
         if (r.switched_from) log(`${r.switched_from} already applied to ${jd0.company} — switched to next-best.`, "warn");
@@ -116,7 +146,7 @@ async function processQueue() {
       if (e.message === "unauthorized") {
         queue.length = 0;        // drop the rest; the user must re-authenticate
         processing = false;
-        updateQ();
+        renderQueue();
         showApp(false);
         return;
       }
@@ -124,7 +154,7 @@ async function processQueue() {
     }
   }
   processing = false;
-  updateQ();
+  renderQueue();
 }
 
 async function loadApplications() {
