@@ -10,6 +10,7 @@ import mimetypes
 import os
 import sys
 import threading
+import traceback
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, Header, HTTPException
@@ -66,8 +67,16 @@ def health() -> dict:
 def bid(body: BidIn, _: bool = Depends(require_auth)) -> dict:
     if not (body.jd_text or "").strip():
         raise HTTPException(status_code=400, detail="JD text is empty.")
-    with _lock:
-        return process_jd(body.jd_text, profile_id=body.profile_id, force=body.force)
+    try:
+        with _lock:
+            return process_jd(body.jd_text, profile_id=body.profile_id, force=body.force)
+    except HTTPException:
+        raise
+    except Exception as err:
+        # Full traceback to the server logs; concise cause back to the UI so a failed
+        # generation isn't an opaque blank 500.
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Generation failed — {type(err).__name__}: {err}")
 
 
 @app.get("/api/applications")
