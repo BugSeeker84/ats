@@ -3,9 +3,9 @@ import csv
 import hashlib
 import io
 
-from . import config, storage
+from . import config, gistlog, storage
 
-# Object key for the index when storage is enabled (kept flat at the bucket prefix root).
+# Object key for the index when S3 storage is enabled (flat at the bucket prefix root).
 _CSV_KEY = "applications.csv"
 
 HEADER = [
@@ -44,10 +44,16 @@ def _rows_to_csv(rows: list[dict]) -> str:
     return buf.getvalue()
 
 
+def _parse_csv(text: str | None) -> list[dict]:
+    return list(csv.DictReader(io.StringIO(text))) if text else []
+
+
 def read_applications() -> list[dict]:
+    # Backends in priority order: GitHub gist, S3 object, local file.
+    if gistlog.enabled():
+        return _parse_csv(gistlog.read_text())
     if storage.enabled():
-        text = storage.read_text(_CSV_KEY)
-        return list(csv.DictReader(io.StringIO(text))) if text else []
+        return _parse_csv(storage.read_text(_CSV_KEY))
     if not config.APPLICATIONS_CSV.exists():
         return []
     with config.APPLICATIONS_CSV.open(newline="", encoding="utf-8-sig") as f:
@@ -57,11 +63,14 @@ def read_applications() -> list[dict]:
 def append_application(app: dict) -> dict:
     """Append one row, assigning the next running number. Returns the stored row.
 
-    With storage enabled, the whole index is rewritten as one object (atomic put);
+    For the gist/S3 backends the whole index is rewritten in one atomic call;
     generation is serialized by a lock upstream, so the read-modify-write is safe.
     """
     rows = read_applications()
     row = {**app, "number": len(rows) + 1}
+    if gistlog.enabled():
+        gistlog.write_text(_rows_to_csv([*rows, row]))
+        return row
     if storage.enabled():
         storage.write_text(_rows_to_csv([*rows, row]), _CSV_KEY)
         return row

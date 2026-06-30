@@ -34,3 +34,9 @@ services:
         sync: false
       - key: S3_SECRET_ACCESS_KEY
         sync: false
+      # Alternative to S3: persist ONLY the apply log to a private GitHub gist.
+      # Set both to enable; takes precedence over S3 for the log (PDFs stay ephemeral).
+      - key: GIST_TOKEN
+        sync: false
+      - key: GIST_ID
+        sync: false
