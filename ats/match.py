@@ -16,10 +16,13 @@ the JD, so do NOT heavily penalize a thin or mismatched stored stack - weigh ind
 fit far above it.
 
 GATEWAY FILTER - also decide whether this JD should be skipped entirely:
-- Set "blocked" true if the JD requires a security clearance / public trust, OR requires
-  on-site, hybrid, in-person, or relocation work (i.e., it is NOT fully remote).
+- Set "blocked" true ONLY if: (a) the JD requires a security clearance / public trust, OR
+  (b) the day-to-day work location is on-site, hybrid, or in-person, OR (c) it requires
+  relocation.
+- TRAVEL is NOT a blocker. A remote role that asks for the ability/willingness to travel
+  (including to client sites, for meetings, or occasional/periodic travel) is ACCEPTABLE:
+  do NOT block it, and do NOT treat travel as "on-site" or "not fully remote".
 - A "must reside / be authorized to work in the US" line is normal and does NOT block.
-- if need Ability to travel that's okay, no block
 - Otherwise "blocked" is false. Give a short "reason".
 
 For each developer, judge three things on a 0-100 scale:
