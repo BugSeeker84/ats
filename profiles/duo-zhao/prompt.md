@@ -188,8 +188,8 @@ University of Southern California, 2014 – 2016
  <section id="certifications">
 <h2>Certifications</h2>
 <ul>
-  <!-- Give me relevant 4~7 certifications in this visual way(year: randomly choose between 2020 - 2025)   -->
-    <li>Azure Data Engineer Associate - Microsoft (2022)</li>
+  <!-- Give me relevant 4~7 certifications in this visual way(year: randomly choose between 2017 - 2025)   -->
+    <li>Azure Data Engineer Associate - Microsoft (2018)</li>
     <!-- .. -->
 </ul>
 Keep these projects.
@@ -218,7 +218,7 @@ Successful critieria :
 - If you mention Angular in Google then add version of angular
 - Mentioned skills must be used in company experience section.
 - Add real relevant project name at google and servicenow
-- Google doesn't use React, only Angular.
+- Google doesn't use React, only Angular. also Google Gemini for AI not Copilot, Cursor, Claude.
 - You must use all mentioned skills in company section. (if you mention in skill section then you must contain it as experience at Google or ServiceNow)
 
 Just hold on this text!!
