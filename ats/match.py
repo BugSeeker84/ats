@@ -19,6 +19,7 @@ GATEWAY FILTER - also decide whether this JD should be skipped entirely:
 - Set "blocked" true if the JD requires a security clearance / public trust, OR requires
   on-site, hybrid, in-person, or relocation work (i.e., it is NOT fully remote).
 - A "must reside / be authorized to work in the US" line is normal and does NOT block.
+- if need Ability to travel that's okay, no block
 - Otherwise "blocked" is false. Give a short "reason".
 
 For each developer, judge three things on a 0-100 scale:
