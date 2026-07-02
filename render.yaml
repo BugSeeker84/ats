@@ -22,21 +22,8 @@ services:
       #   sync: false
       # - key: MATCH_MODEL
       #   sync: false
-      # Object storage (Supabase/S3) for persisting generated files + history. DISABLED
-      # for now (we use the gist below). To re-enable later, uncomment these and set all
-      # four required values in the dashboard. Leave them unset to avoid 500s.
-      # - key: S3_ENDPOINT_URL
-      #   sync: false
-      # - key: S3_REGION
-      #   sync: false
-      # - key: S3_BUCKET
-      #   sync: false
-      # - key: S3_ACCESS_KEY_ID
-      #   sync: false
-      # - key: S3_SECRET_ACCESS_KEY
-      #   sync: false
-      # Persist ONLY the apply log to a private GitHub gist (active backend).
-      # Set both to enable; takes precedence over S3 for the log (PDFs stay ephemeral).
+      # Persist the apply log to a private GitHub gist. Set both to enable; when unset,
+      # the log falls back to the local (ephemeral) file. PDFs are always local/ephemeral.
       - key: GIST_TOKEN
         sync: false
       - key: GIST_ID

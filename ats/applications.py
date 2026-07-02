@@ -4,10 +4,7 @@ import hashlib
 import io
 import sys
 
-from . import config, gistlog, storage
-
-# Object key for the index when S3 storage is enabled (flat at the bucket prefix root).
-_CSV_KEY = "applications.csv"
+from . import config, gistlog
 
 HEADER = [
     "number",     # running index, 1-based
@@ -43,15 +40,13 @@ def _parse_csv(text: str | None) -> list[dict]:
 
 
 def _read_backend_text() -> str | None:
-    """Raw CSV text from the active backend (gist > S3 > local), or None if empty.
+    """Raw CSV text from the active backend (gist > local file), or None if empty.
 
-    Raises if a configured external store is unreachable/misconfigured — callers
-    that rewrite the log rely on this so a failed read can't clobber it.
+    Raises if the gist is unreachable/misconfigured — callers that rewrite the log
+    rely on this so a failed read can't clobber it.
     """
     if gistlog.enabled():
         return gistlog.read_text()
-    if storage.enabled():
-        return storage.read_text(_CSV_KEY)
     if not config.APPLICATIONS_CSV.exists():
         return None
     return config.APPLICATIONS_CSV.read_text(encoding="utf-8-sig")
@@ -79,8 +74,6 @@ def append_application(app: dict) -> dict:
     csv_text = _rows_to_csv([*rows, row])
     if gistlog.enabled():
         gistlog.write_text(csv_text)
-    elif storage.enabled():
-        storage.write_text(csv_text, _CSV_KEY)
     else:
         # Local file: rewrite the whole log (utf-8-sig BOM for Excel) so a schema change
         # (e.g. a new column) migrates existing rows instead of misaligning an append.

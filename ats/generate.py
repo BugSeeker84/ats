@@ -5,9 +5,8 @@ that into HTML with the profile's Jinja template. The model never emits layout, 
 styling is deterministic and cannot drift between runs.
 """
 import re
-from pathlib import Path
 
-from . import config, llm, storage
+from . import config, llm
 from .profiles import Profile
 from .render.html import render_cover_letter, render_resume
 from .rules import check_resume
@@ -195,14 +194,5 @@ def save_docs(docs: dict, profile, jd: dict, jd_text: str, pdf: bool = True) -> 
             out["cover_pdf"] = str(cover_pdf)
         except PdfUnavailable as err:
             out["pdf_error"] = str(err)
-
-    # Mirror the generated files to object storage so they survive an ephemeral disk.
-    # The bucket key mirrors the download route: <folder name>/<filename>.
-    if storage.enabled():
-        for key in ("resume_html", "cover_html", "jd", "resume_pdf", "cover_pdf"):
-            value = out.get(key)
-            if value:
-                path = Path(value)
-                storage.upload_file(path, folder.name, path.name)
 
     return out
