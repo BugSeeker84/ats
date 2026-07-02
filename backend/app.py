@@ -86,8 +86,8 @@ def bid(body: BidIn, _: bool = Depends(require_auth)) -> dict:
 
 @app.get("/api/applications")
 def applications(_: bool = Depends(require_auth)) -> list[dict]:
-    # Ascending by number (#1, #2, #3 …).
-    return sorted(read_applications(), key=lambda a: int(a.get("number") or 0))
+    # Newest first (LIFO): #3, #2, #1 …
+    return sorted(read_applications(), key=lambda a: int(a.get("number") or 0), reverse=True)
 
 
 @app.get("/api/profiles")
