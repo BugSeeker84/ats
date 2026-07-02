@@ -45,6 +45,8 @@ td a:hover { text-decoration:underline; }
 
 .error { color:var(--err); font-size:13px; margin-top:8px; }
 
+.jdlink { margin-top:10px; }
+
 .queue { display:flex; flex-direction:column; gap:6px; margin-top:10px; }
 .queue .qitem { display:flex; align-items:center; gap:10px; background:var(--bg);
                 border:1px solid var(--rule); border-radius:8px; padding:6px 10px; }

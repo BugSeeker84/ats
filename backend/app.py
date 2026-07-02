@@ -54,6 +54,7 @@ def require_auth(x_access_token: str = Header(default="")) -> bool:
 
 class BidIn(BaseModel):
     jd_text: str
+    jd_link: str | None = None
     profile_id: str | None = None
     force: bool = False
 
@@ -69,7 +70,12 @@ def bid(body: BidIn, _: bool = Depends(require_auth)) -> dict:
         raise HTTPException(status_code=400, detail="JD text is empty.")
     try:
         with _lock:
-            return process_jd(body.jd_text, profile_id=body.profile_id, force=body.force)
+            return process_jd(
+                body.jd_text,
+                profile_id=body.profile_id,
+                force=body.force,
+                jd_link=body.jd_link or "",
+            )
     except HTTPException:
         raise
     except Exception as err:

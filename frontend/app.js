@@ -106,12 +106,14 @@ function enqueueBid() {
   queue.push({
     id: ++seq,
     jd_text: jd,
+    jd_link: $("jdlink").value.trim(),
     profile_id: sel.value || null,
     force: $("force").checked,
     preview: jd.replace(/\s+/g, " ").slice(0, 70),
     profileLabel: sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex].text : "Auto — best match",
   });
   $("jd").value = "";
+  $("jdlink").value = "";
   $("jd").focus();
   log(`➕ Queued — ${queue.length + (processing ? 1 : 0)} in line.`, "dim");
   renderQueue();
@@ -128,7 +130,7 @@ async function processQueue() {
     log(`Matching candidate and generating…${queue.length ? ` (${queue.length} still queued)` : ""}`, "dim");
     try {
       const r = await api("/api/bid", { method: "POST", json: true,
-        body: JSON.stringify({ jd_text: item.jd_text, profile_id: item.profile_id, force: item.force }) });
+        body: JSON.stringify({ jd_text: item.jd_text, jd_link: item.jd_link || null, profile_id: item.profile_id, force: item.force }) });
       const jd0 = r.jd || {};
       if (r.status === "generated") {
         if (r.switched_from) log(`${r.switched_from} already applied to ${jd0.company} — switched to next-best.`, "warn");
@@ -165,13 +167,21 @@ async function loadApplications() {
     const tr = document.createElement("tr");
     const fileLinks = filesFor(a);
     tr.innerHTML = `<td>${a.number || ""}</td><td>${a.date || ""}</td><td>${esc(a.company)}</td>` +
-      `<td>${esc(a.job_title)}</td><td>${esc(a.profile)}</td><td>${esc(a.salary)}</td><td>${fileLinks}</td>`;
+      `<td>${esc(a.job_title)}</td><td>${esc(a.profile)}</td><td>${esc(a.salary)}</td>` +
+      `<td>${jdLinkCell(a.jd_link)}</td><td>${fileLinks}</td>`;
     tb.appendChild(tr);
   });
   // wire up download links
   tb.querySelectorAll("a[data-folder]").forEach((a) => {
     a.addEventListener("click", (e) => { e.preventDefault(); download(a.dataset.folder, a.dataset.file, a.dataset.dlname); });
   });
+}
+
+function jdLinkCell(link) {
+  link = (link || "").trim();
+  // Only render an anchor for real http(s) URLs — guards against javascript:/data: URIs.
+  if (!/^https?:\/\//i.test(link)) return "";
+  return `<a href="${esc(link)}" target="_blank" rel="noopener noreferrer">link ↗</a>`;
 }
 
 function compact(name, fallback) { return (name || "").replace(/[^A-Za-z0-9]/g, "") || (fallback || "Resume"); }

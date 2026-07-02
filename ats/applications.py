@@ -16,6 +16,7 @@ HEADER = [
     "company",    # JD company
     "job_title",  # JD role
     "salary",     # JD salary range (blank if none stated)
+    "jd_link",    # URL of the original job posting (optional)
     "folder",     # output subfolder name
     "jd_hash",    # for duplicate detection
 ]
@@ -26,14 +27,6 @@ def hash_jd(text: str) -> str:
     model extracts the company/role slightly differently between runs."""
     norm = " ".join((text or "").lower().split())
     return hashlib.sha1(norm.encode("utf-8")).hexdigest()[:16]
-
-
-def _ensure_file() -> None:
-    config.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    if not config.APPLICATIONS_CSV.exists():
-        # utf-8-sig writes a BOM so Excel renders em dashes / accents correctly.
-        with config.APPLICATIONS_CSV.open("w", newline="", encoding="utf-8-sig") as f:
-            csv.writer(f).writerow(HEADER)
 
 
 def _rows_to_csv(rows: list[dict]) -> str:
@@ -83,15 +76,16 @@ def append_application(app: dict) -> dict:
     """
     rows = _parse_csv(_read_backend_text())
     row = {**app, "number": len(rows) + 1}
+    csv_text = _rows_to_csv([*rows, row])
     if gistlog.enabled():
-        gistlog.write_text(_rows_to_csv([*rows, row]))
-        return row
-    if storage.enabled():
-        storage.write_text(_rows_to_csv([*rows, row]), _CSV_KEY)
-        return row
-    _ensure_file()
-    with config.APPLICATIONS_CSV.open("a", newline="", encoding="utf-8") as f:
-        csv.writer(f).writerow([row.get(k, "") for k in HEADER])
+        gistlog.write_text(csv_text)
+    elif storage.enabled():
+        storage.write_text(csv_text, _CSV_KEY)
+    else:
+        # Local file: rewrite the whole log (utf-8-sig BOM for Excel) so a schema change
+        # (e.g. a new column) migrates existing rows instead of misaligning an append.
+        config.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+        config.APPLICATIONS_CSV.write_text(csv_text, encoding="utf-8-sig")
     return row
 
 

@@ -22,6 +22,7 @@ def process_jd(
     force: bool = False,
     pdf: bool = True,
     fix_attempts: int = 0,
+    jd_link: str = "",
 ) -> dict:
     """Run one JD end-to-end. Returns a dict with a 'status':
 
@@ -94,6 +95,7 @@ def process_jd(
             "company": company,
             "job_title": jd["role"],
             "salary": jd.get("salary", ""),
+            "jd_link": (jd_link or "").strip(),
             "folder": Path(out["dir"]).name,
             "jd_hash": hash_jd(jd_text),
         }

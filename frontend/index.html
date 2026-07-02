@@ -29,6 +29,7 @@
       <h2>New bid</h2>
       <p class="muted">Copy the job description from the posting and paste it below.</p>
       <textarea id="jd" rows="12" placeholder="Paste the full job description here…"></textarea>
+      <input id="jdlink" class="jdlink" type="url" placeholder="JD link (optional) — paste the job posting URL">
       <div class="row">
         <select id="profile" title="Which candidate to use">
           <option value="">Auto — best match</option>
@@ -53,7 +54,7 @@
       </div>
       <table id="apps">
         <thead>
-          <tr><th>#</th><th>Date</th><th>Company</th><th>Job title</th><th>Profile</th><th>Salary</th><th>Files</th></tr>
+          <tr><th>#</th><th>Date</th><th>Company</th><th>Job title</th><th>Profile</th><th>Salary</th><th>JD</th><th>Files</th></tr>
         </thead>
         <tbody></tbody>
       </table>
